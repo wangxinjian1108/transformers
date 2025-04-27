@@ -1,0 +1,36 @@
+# Modified Objects365 dataset with selected categories only
+# Based on https://www.objects365.org/ by Megvii
+# Documentation: https://docs.ultralytics.com/datasets/detect/objects365/
+
+# Path configuration
+path: /mnt/juicefs/xinjian/open_dataset/object365_tiny50000  # dataset root dir
+train: images/train  # train images (relative to 'path')
+val: images/val  # val images (relative to 'path')
+# test:  # test images (optional)
+
+# Selected Classes (reordered as requested)
+names:
+  0: Person       # original index 0
+  1: Car          # original index 5
+  2: SUV          # original index 34
+  3: Van          # original index 49
+  4: Bus          # original index 55
+  5: Truck        # original index 65
+  6: Motorcycle   # original index 58
+  7: Bicycle      # original index 46
+  8: Traffic cone # original index 66
+
+# Mapping from original dataset to maintain compatibility
+# during training/inference
+map:  # original class index -> new class index
+  0: 0    # Person -> Person
+  5: 1    # Car -> Car
+  34: 2   # SUV -> SUV
+  49: 3   # Van -> Van
+  55: 4   # Bus -> Bus
+  65: 5   # Truck -> Truck
+  58: 6   # Motorcycle -> Motorcycle
+  46: 7   # Bicycle -> Bicycle
+  66: 8   # Traffic cone -> Traffic cone
+
+# 0, 5, 34, 46, 49, 55, 58, 65, 66
