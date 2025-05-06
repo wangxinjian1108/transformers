@@ -1,0 +1,12 @@
+trip_dir: "/mnt/juicefs/obstacle_visual_auto_labeling/raw_data/"
+vehicle_names: "pdb-l4e-c0002,pdb-l4e-c0008,pdb-l4e-c0010,pdb-l4e-c0011,pdb-l4e-LJ18R2BL1P3305877,pdb-l4e-LJ18R2BL3P3305878"
+start_date: "2025-03-01"
+end_date: "2025-03-31"
+start_time: "00:00:00"
+end_time: "23:59:59"
+min_log_level: "INFO"
+log_level: "INFO"
+save_dir: "/mnt/juicefs/xinjian/non_vehicle_data/clips_candidate_202503"
+work_nums: 256
+max_tracking_frames: 200
+min_non_vehicle_frames: 50
