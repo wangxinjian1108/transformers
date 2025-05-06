@@ -8,7 +8,7 @@ min_log_level: &global_min_log_level "DEBUG"
 log_level: &global_log_level "DEBUG"
 debug_mode: &global_debug_mode true
 check_indicator: &global_check_indicator false
-work_nums: &global_work_nums 1
+work_nums: &global_work_nums 32
 
 trip_fragmentation_configs:
   - &default_config

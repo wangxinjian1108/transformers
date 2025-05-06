@@ -27,6 +27,7 @@ import json
 from enum import IntEnum
 import numpy as np
 import time
+import threading
 
 
 # Configure the logger
@@ -127,7 +128,18 @@ def drop_nan_and_take_most_frequent(data, default_val):
     if isinstance(res, default_val.__class__):
         return res
     return default_val.__class__(res)
-    
+
+
+BAG_PATH_LOCKS = {}
+
+def set_bag_lock(filepath):
+    if filepath not in BAG_PATH_LOCKS:
+        BAG_PATH_LOCKS[filepath] = threading.Lock()
+
+def get_bag_lock(filepath):
+    if filepath not in BAG_PATH_LOCKS:
+        BAG_PATH_LOCKS[filepath] = threading.Lock()
+    return BAG_PATH_LOCKS[filepath]
 
 
 class Indensity(IntEnum):
@@ -260,10 +272,15 @@ class ClipInfo:
     scenario_status: ScenarioStatus = ScenarioStatus()
     is_valid_candidate: bool = False
     vehicle_name: str = ''
+    status_lock: Optional[threading.Lock] = None
     
     def __str__(self):
         return "{}, bag_paths: {}, mid_time  : {}, duration: {:.1f}".format(self.name(),
             self.bag_paths, self.mid_time(), self.duration())
+        
+    def __post_init__(self):
+        assert len(self.bag_paths) == len(self.start_times) == len(self.end_times), 'bag_paths, start_times, end_times length not match'
+        self.status_lock = threading.Lock()
         
     def cross_bag(self):
         return len(self.bag_paths) > 1
@@ -317,56 +334,59 @@ class ClipInfo:
         for bf, st, et in zip(self.bag_paths, self.start_times, self.end_times):
             # bf = "/mnt/vault25/drives/2025-03-03/20250303T045402_pdb-l4e-c0002_2.db"
             # st, et = 1740951408.588132, 1740951414.588132
-            if not fastbag.Reader.is_readable(bf):
-                logger.error(f'bag {bf} is not readable, path exists: {os.path.exists(bf)}')
-                continue
-            with fastbag.Reader(bf) as reader:
-                # 1. read obstacle info
-                for aa, msg, cc in reader.read_messages(obstacle_detection_topic, start_time=st, end_time=et):
-                    obs_pb = ObstacleDetection()
-                    obs_pb.ParseFromString(msg.data)
-                    if len(obs_pb.obstacle) == 0:
-                        continue
-                    # print(f"fuck mingyao {self.scenario_status.tracking_frames}, timestamp {aa}, {cc}")
-                    
-                    track_ids = [ob.id for ob in obs_pb.obstacle]
-                    tracking_times = [ob.tracking_time for ob in obs_pb.obstacle]
-                    xs = [ob.motion.xrel for ob in obs_pb.obstacle]
-                    ys = [ob.motion.yrel for ob in obs_pb.obstacle]
-                    status_valids = [ob.track_maturity == 5 for ob in obs_pb.obstacle]
-                    in_rois = [in_roi(x, y, args) for x, y in zip(xs, ys)]
-                    in_sides = [in_side_region(x, y, args) for x, y in zip(xs, ys)]
-                    is_vehicles = [ob.length > 3 and ob.width > 1 and ob.height > 1 for ob in obs_pb.obstacle]
-                    is_large_obs = [ob.length > 10 and ob.width > 1 and ob.height > 1 for ob in obs_pb.obstacle]
-                    is_cones = [int(ob.type == PerceptionObstacle.CONE) for ob in obs_pb.obstacle]
-                    is_pedestrians = [int(ob.type == PerceptionObstacle.PEDESTRIAN) for ob in obs_pb.obstacle]
-                    is_bycycles = [int(ob.type == PerceptionObstacle.BICYCLE) for ob in obs_pb.obstacle]
-                    is_motos = [int(ob.type == PerceptionObstacle.MOTO) for ob in obs_pb.obstacle]
-                    # types = [ob.type for ob in obs_pb.obstacle]
-                    
-                    valid_obs = [int(in_roi and is_vehicle and status_valid) for in_roi, is_vehicle, status_valid in zip(in_rois, is_vehicles, status_valids)]
-                    side_obs = [int(in_side and is_vehicle and status_valid) for in_side, is_vehicle, status_valid in zip(in_sides, is_vehicles, status_valids)]
-                    side_large_obs = [int(in_side and large and status_valid) for in_side, large, status_valid in zip(in_sides, is_large_obs, status_valids)]
-                    obstacle_ids |= set([track_id for track_id, valid in zip(track_ids, valid_obs) if valid])
-                    side_ob_ids |= set([track_id for track_id, valid in zip(track_ids, side_obs) if valid])
-                    side_large_ob_ids |= set([track_id for track_id, valid in zip(track_ids, side_large_obs) if valid])
-                    side_large_potential_fp_ids |= set([track_id for track_id, x, y, tracking_time, is_large_ob in zip(track_ids, xs, ys, tracking_times, is_large_obs)
-                                                        if is_side_potential_fp(x, y, tracking_time) and is_large_ob])
-                    
-                    self.scenario_status.tracking_frames += 1
-                    self.scenario_status.bycycle_frames += int(sum(is_bycycles) > 0)
-                    self.scenario_status.pedestrian_frames += int(sum(is_pedestrians) > 0)
-                    self.scenario_status.cone_frames += int(sum(is_cones) > 2)
-                    self.scenario_status.moto_frames += int(sum(is_motos) > 0)
-                    
-                # 2. read localization info
-                lane_res.extend(list(reader.read_messages(lane_detection_topic, start_time=st, end_time=et)))
-                local_res.extend(list(reader.read_messages(localization_topic, start_time=st, end_time=et)))
-                localization_status_report.extend(list(reader.read_messages(localization_status_topic, start_time=st, end_time=et)))
-                tmp_perception_status_report = list(reader.read_messages(perception_status_topic, start_time=st, end_time=et))
-                if len(tmp_perception_status_report) == 0:
-                    tmp_perception_status_report = list(reader.read_messages(old_perception_status_topic, start_time=st, end_time=et))
-                perception_status_report.extend(tmp_perception_status_report)
+            # if True:
+            with get_bag_lock(bf):  # 加锁
+                if not fastbag.Reader.is_readable(bf):
+                    logger.error(f'bag {bf} is not readable, path exists: {os.path.exists(bf)}')
+                    continue
+                with fastbag.Reader(bf) as reader:
+                    # 1. read obstacle info
+                    for aa, msg, cc in reader.read_messages(obstacle_detection_topic, start_time=st, end_time=et):
+                        obs_pb = ObstacleDetection()
+                        obs_pb.ParseFromString(msg.data)
+                        if len(obs_pb.obstacle) == 0:
+                            continue
+                        # print(f"fuck mingyao {self.scenario_status.tracking_frames}, timestamp {aa}, {cc}")
+                        
+                        track_ids = [ob.id for ob in obs_pb.obstacle]
+                        tracking_times = [ob.tracking_time for ob in obs_pb.obstacle]
+                        xs = [ob.motion.xrel for ob in obs_pb.obstacle]
+                        ys = [ob.motion.yrel for ob in obs_pb.obstacle]
+                        status_valids = [ob.track_maturity == 5 for ob in obs_pb.obstacle]
+                        in_rois = [in_roi(x, y, args) for x, y in zip(xs, ys)]
+                        in_sides = [in_side_region(x, y, args) for x, y in zip(xs, ys)]
+                        is_vehicles = [ob.length > 3 and ob.width > 1 and ob.height > 1 for ob in obs_pb.obstacle]
+                        is_large_obs = [ob.length > 10 and ob.width > 1 and ob.height > 1 for ob in obs_pb.obstacle]
+                        is_cones = [int(ob.type == PerceptionObstacle.CONE) for ob in obs_pb.obstacle]
+                        is_pedestrians = [int(ob.type == PerceptionObstacle.PEDESTRIAN) for ob in obs_pb.obstacle]
+                        is_bycycles = [int(ob.type == PerceptionObstacle.BICYCLE) for ob in obs_pb.obstacle]
+                        is_motos = [int(ob.type == PerceptionObstacle.MOTO) for ob in obs_pb.obstacle]
+                        # types = [ob.type for ob in obs_pb.obstacle]
+                        
+                        valid_obs = [int(in_roi and is_vehicle and status_valid) for in_roi, is_vehicle, status_valid in zip(in_rois, is_vehicles, status_valids)]
+                        side_obs = [int(in_side and is_vehicle and status_valid) for in_side, is_vehicle, status_valid in zip(in_sides, is_vehicles, status_valids)]
+                        side_large_obs = [int(in_side and large and status_valid) for in_side, large, status_valid in zip(in_sides, is_large_obs, status_valids)]
+                        obstacle_ids |= set([track_id for track_id, valid in zip(track_ids, valid_obs) if valid])
+                        side_ob_ids |= set([track_id for track_id, valid in zip(track_ids, side_obs) if valid])
+                        side_large_ob_ids |= set([track_id for track_id, valid in zip(track_ids, side_large_obs) if valid])
+                        side_large_potential_fp_ids |= set([track_id for track_id, x, y, tracking_time, is_large_ob in zip(track_ids, xs, ys, tracking_times, is_large_obs)
+                                                            if is_side_potential_fp(x, y, tracking_time) and is_large_ob])
+                        
+                        with self.status_lock:
+                            self.scenario_status.tracking_frames += 1
+                            self.scenario_status.bycycle_frames += int(sum(is_bycycles) > 0)
+                            self.scenario_status.pedestrian_frames += int(sum(is_pedestrians) > 0)
+                            self.scenario_status.cone_frames += int(sum(is_cones) > 2)
+                            self.scenario_status.moto_frames += int(sum(is_motos) > 0)
+                        
+                    # 2. read localization info
+                    lane_res.extend(list(reader.read_messages(lane_detection_topic, start_time=st, end_time=et)))
+                    local_res.extend(list(reader.read_messages(localization_topic, start_time=st, end_time=et)))
+                    localization_status_report.extend(list(reader.read_messages(localization_status_topic, start_time=st, end_time=et)))
+                    tmp_perception_status_report = list(reader.read_messages(perception_status_topic, start_time=st, end_time=et))
+                    if len(tmp_perception_status_report) == 0:
+                        tmp_perception_status_report = list(reader.read_messages(old_perception_status_topic, start_time=st, end_time=et))
+                    perception_status_report.extend(tmp_perception_status_report)
         
         if self.scenario_status.tracking_frames > self.duration() * 10 * 1.25:
             logger.error(f'Found multi-thread process tracking frames count error, tracking frames: {self.scenario_status.tracking_frames}, {self.__str__()}')
@@ -538,6 +558,7 @@ class BagInfo:
         self.duration = self.end_time - self.start_time
         self.start_date = timestamp_to_formatstr(self.start_time, '%Y-%m-%d %H:%M:%S')
         self.end_date = timestamp_to_formatstr(self.end_time, '%Y-%m-%d %H:%M:%S')
+        set_bag_lock(self.path)
 
     def __str__(self):
         return "BagInfo: {}, duration: {:.0f}, distance: {:.0f}, speed: {:.1f}".format(
@@ -636,7 +657,7 @@ class BatchTripTaskManager:
     def __init__(self, args: argparse.Namespace):
         self.args = args
         self.trips = self.cluster_bags_to_trip(self.query_infos(args), args.vehicle_name)
-        # self.trips = [self.trips[0]]
+        self.trips = [self.trips[0]]
         self.indexs = [] # trip index -> clip index
         logger.error(f'found total {len(self.trips)} trips for vehicle: {args.vehicle_name} from {args.start_date} to {args.end_date}')
     
