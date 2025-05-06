@@ -1,0 +1,55 @@
+trip_dir: &global_trip_dir "/mnt/juicefs/obstacle_visual_auto_labeling/test_raw_data/"
+start_date: &global_start_date "2025-03-01"
+end_date: &global_end_date "2025-03-31"
+start_time: &global_start_time "00:00:00"
+end_time: &global_end_time "23:59:59"
+container_name: "auto_labeling"
+min_log_level: &global_min_log_level "DEBUG"
+log_level: &global_log_level "DEBUG"
+debug_mode: &global_debug_mode true
+check_indicator: &global_check_indicator false
+work_nums: &global_work_nums 1
+
+trip_fragmentation_configs:
+  - &default_config
+    vehicle_name: "pdb-l4e-c0002"
+    start_date: *global_start_date
+    end_date: *global_end_date
+    start_time: *global_start_time
+    end_time: *global_end_time
+    min_hour: 0
+    max_hour: 24
+    clip_duration: 10
+    output_dir: *global_trip_dir
+    debug_one_data: false
+    work_nums: *global_work_nums
+    min_side_obs_num: 0
+    min_side_large_obs_num: 0
+    min_ave_speed: 3
+    max_ave_speed: 25
+    mine_non_vehicle_obstacle: True
+    min_cone_frames: 50
+    min_moto_frames: 50
+    min_bycycle_frames: 50
+    min_pedestrian_frames: 50
+    use_pitch_correction: False
+    check_indicator: *global_check_indicator
+    debug_mode: *global_debug_mode
+    skip: false
+    min_log_level: *global_min_log_level
+    log_level: *global_log_level
+
+  # - <<: *default_config
+  #   vehicle_name: "pdb-l4e-c0008"
+  
+  # - <<: *default_config
+  #   vehicle_name: "pdb-l4e-c0010"
+  
+  # - <<: *default_config
+  #   vehicle_name: "pdb-l4e-c0011"
+
+  # - <<: *default_config
+  #   vehicle_name: "pdb-l4e-LJ18R2BL1P3305877"
+  
+  # - <<: *default_config
+  #   vehicle_name: "pdb-l4e-LJ18R2BL3P3305878"
