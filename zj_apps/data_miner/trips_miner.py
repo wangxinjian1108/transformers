@@ -395,7 +395,8 @@ class ClipInfo:
         self.scenario_status.side_obs_num = len(side_ob_ids)
         self.scenario_status.side_large_obs_num = len(side_large_ob_ids)
         self.scenario_status.side_large_potential_fp_num = len(side_large_potential_fp_ids)
-        if self.scenario_status.obs_num == 0:
+        
+        if self.scenario_status.obs_num == 0 and self.scenario_status.non_vehicle_ob_frames() == 0:
             return
         
         # lane detection
@@ -447,7 +448,7 @@ class ClipInfo:
         return js
 
     def download_info(self, save_dir):
-        logger.debug(f'start to parse info for clip: {self.name()} ...')
+        logger.warning(f'start to parse info for clip: {self.name()} ...')
         # 1. read images
         lane_res, local_res, local_gnss_res = [], [], []
         for bf, st, et in zip(self.bag_paths, self.start_times, self.end_times):
@@ -657,7 +658,7 @@ class BatchTripTaskManager:
     def __init__(self, args: argparse.Namespace):
         self.args = args
         self.trips = self.cluster_bags_to_trip(self.query_infos(args), args.vehicle_name)
-        self.trips = [self.trips[0]]
+        # self.trips = [self.trips[0]]
         self.indexs = [] # trip index -> clip index
         logger.error(f'found total {len(self.trips)} trips for vehicle: {args.vehicle_name} from {args.start_date} to {args.end_date}')
     
@@ -789,7 +790,11 @@ class BatchTripTaskManager:
                 executor.map(process_unit_clip, self.indexs)
         else:
             for index in self.indexs:
-                process_unit_clip(index)
+                try:
+                    process_unit_clip(index)
+                except Exception as e:
+                    logger.error("Something went wrong, but no big deal, the error infomation is: {e}")
+                    
                 if args.debug_one_data:
                     break
         valid_clip_nb = sum(valid)

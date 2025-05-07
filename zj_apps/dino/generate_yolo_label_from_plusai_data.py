@@ -106,7 +106,7 @@ def visualize_detections(image, detections):
     return draw_image
 
 def process_directory(img_dir, output_dir, text_prompts, vehicle_name, camera_name, class2id_map, object_nb_map,
-                      processor, model, device, box_threshold=0.4, text_threshold=0.3):
+                      processor, model, device, box_threshold=0.4, text_threshold=0.3, interval_frames=4):
     """
     处理目录中的所有图像
     
@@ -135,8 +135,10 @@ def process_directory(img_dir, output_dir, text_prompts, vehicle_name, camera_na
     
     print(f"正在处理 {len(image_files)} 张图像...")
     
-    for img_path in tqdm(image_files):
-        basename = os.path.basename(img_path)
+    for i, img_path in enumerate(tqdm(image_files)):
+        if i % interval_frames != 0:
+            continue
+        basename = os.path.basename(img_path)[:-4] # remove .png extension
         basename = f'{vehicle_name}_{camera_name}_{basename}'
         
         # 加载图像
@@ -162,15 +164,15 @@ def process_directory(img_dir, output_dir, text_prompts, vehicle_name, camera_na
             continue
         
         # 保存原始图像
-        origin_path = os.path.join(dirs['origin'], basename)
+        origin_path = os.path.join(dirs['origin'], basename + '.jpg')
         shutil.copy(img_path, origin_path)
         
         # 保存可视化结果
-        debug_path = os.path.join(dirs['debug'], basename)
+        debug_path = os.path.join(dirs['debug'], basename + '.jpg')
         visualize_detections(image, detections).save(debug_path)
         
         # 保存YOLO格式标签
-        label_path = os.path.join(dirs['label'], f"{basename}.txt")
+        label_path = os.path.join(dirs['label'], f"{basename}.txt") 
         with open(label_path, 'w') as f:
             img_w, img_h = image.size
             for d in detections:
@@ -258,6 +260,8 @@ def main():
     parser.add_argument("--device", default="cpu", help="运行设备（cuda/cpu）")
     parser.add_argument("--cameras", type=str, default="side_right_camera", help="摄像头名称，多个用逗号分隔")
     parser.add_argument("--object-nbs", type=str, default="cone,2", help="目标名称和数量，多个用逗号分隔")
+    parser.add_argument("--check_indicator", type=bool, default=True, help="是否检查指标")
+    parser.add_argument("--interval_frames", type=int, default=4, help="每隔多少帧处理一次")
     
     args = parser.parse_args()
     
@@ -282,8 +286,11 @@ def main():
     # Process each clip
     for clip in tqdm(clips):
         clip = clip.strip()
-        if not os.path.exists(clip):
+        if not os.path.exists(clip) or not os.path.exists(f'{clip}/raw_images'):
             print(f'路径 {clip} 不存在')
+            continue
+        if args.check_indicator and os.path.exists(f'{clip}/data_mined'):
+            print(f'路径 {clip} 已经处理过')
             continue
         # /mnt/juicefs/obstacle_visual_auto_labeling/raw_data/pdb-l4e-c0002/xxxx
         vehicle_name = clip.split("/")[5]
@@ -299,8 +306,12 @@ def main():
                 object_nb_map,
                 processor, model, device,
                 args.box_threshold,
-                args.text_threshold
+                args.text_threshold,
+                args.interval_frames
             )
+        # add indicator
+        with open(f'{clip}/data_mined', 'w') as f:
+            f.write('done')
     
     # 创建视频
     create_video_ffmpeg(f'{args.output_dir}/debug_result', args.video_path)

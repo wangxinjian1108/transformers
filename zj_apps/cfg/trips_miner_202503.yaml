@@ -6,9 +6,8 @@ end_time: &global_end_time "23:59:59"
 container_name: "auto_labeling"
 min_log_level: &global_min_log_level "DEBUG"
 log_level: &global_log_level "DEBUG"
-debug_mode: &global_debug_mode true
-check_indicator: &global_check_indicator false
-work_nums: &global_work_nums 32
+check_indicator: &global_check_indicator true
+work_nums: &global_work_nums 1
 
 trip_fragmentation_configs:
   - &default_config
@@ -34,22 +33,22 @@ trip_fragmentation_configs:
     min_pedestrian_frames: 50
     use_pitch_correction: False
     check_indicator: *global_check_indicator
-    debug_mode: *global_debug_mode
+    debug_mode: false
     skip: false
     min_log_level: *global_min_log_level
     log_level: *global_log_level
 
-  # - <<: *default_config
-  #   vehicle_name: "pdb-l4e-c0008"
+  - <<: *default_config
+    vehicle_name: "pdb-l4e-c0008"
   
-  # - <<: *default_config
-  #   vehicle_name: "pdb-l4e-c0010"
+  - <<: *default_config
+    vehicle_name: "pdb-l4e-c0010"
   
-  # - <<: *default_config
-  #   vehicle_name: "pdb-l4e-c0011"
+  - <<: *default_config
+    vehicle_name: "pdb-l4e-c0011"
 
-  # - <<: *default_config
-  #   vehicle_name: "pdb-l4e-LJ18R2BL1P3305877"
+  - <<: *default_config
+    vehicle_name: "pdb-l4e-LJ18R2BL1P3305877"
   
-  # - <<: *default_config
-  #   vehicle_name: "pdb-l4e-LJ18R2BL3P3305878"
+  - <<: *default_config
+    vehicle_name: "pdb-l4e-LJ18R2BL3P3305878"
