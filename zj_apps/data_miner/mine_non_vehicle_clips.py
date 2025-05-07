@@ -113,7 +113,7 @@ def run(args: argparse.Namespace):
         if counter.tracking_frames > args.max_tracking_frames or counter.cone > args.max_tracking_frames \
             or counter.pedestrian > args.max_tracking_frames or counter.moto > args.max_tracking_frames or \
             counter.cyclist > args.max_tracking_frames:
-            print(f'{clip_path} has too many tracking frames {counter.tracking_frames}, maybe thread unsafe')
+            logger.warning(f'{clip_path} has too many tracking frames {counter.tracking_frames}, maybe thread unsafe')
             return
         pedestrain_valids[index] = clip_path if counter.pedestrian > args.min_pedestrian_frames else ''
         cone_valids[index] = clip_path if counter.cone > args.min_cone_frames else ''

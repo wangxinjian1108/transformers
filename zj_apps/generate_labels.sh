@@ -9,6 +9,6 @@ python zj_apps/dino/generate_yolo_label_from_plusai_data.py \
     --output-dir $output_dir \
     --prompts $prompts \
     --video-path cone_detect_202503.mp4 \
-    --cameras side_right_camera \
+    --cameras front_center_camera,side_right_camera \
     --device cpu \
     --object-nbs "cone,1"
