@@ -154,11 +154,12 @@ def process_directory(img_dir, output_dir, text_prompts, vehicle_name, camera_na
             box_threshold=box_threshold, text_threshold=text_threshold
         )
         
-        # Add condition to reject unused images
-        is_valid_sample = True
+        print(f'{basename}: {object2nb}')
+        # Add condition to reject unused images, e.g., cone_data202503, person_data202503
+        is_valid_sample = False
         for obj, min_num in object_nb_map.items():
-            if obj not in object2nb or object2nb[obj] < min_num:
-                is_valid_sample = False
+            if obj in object2nb and object2nb[obj] >= min_num:
+                is_valid_sample = True
                 break
         if not is_valid_sample:
             continue
@@ -186,6 +187,20 @@ def process_directory(img_dir, output_dir, text_prompts, vehicle_name, camera_na
                 y_center = (y1 + y2) / 2 / img_h
                 width = (x2 - x1) / img_w
                 height = (y2 - y1) / img_h
+                
+                x_min = x_center - width / 2
+                y_min = y_center - height / 2
+                x_max = x_center + width / 2
+                y_max = y_center + height / 2
+                
+                # filter large FP
+                if width > 0.9 or height > 0.9:
+                    continue
+                # filter bottom truncated on side right camera
+                if x_max > 0.98 and y_max > 0.98:
+                    continue
+                if x_min < 0.02 and y_min > 0.98:
+                    continue
                 
                 f.write(f"{class2id_map[label]} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n")
     
@@ -260,7 +275,7 @@ def main():
     parser.add_argument("--device", default="cpu", help="运行设备（cuda/cpu）")
     parser.add_argument("--cameras", type=str, default="side_right_camera", help="摄像头名称，多个用逗号分隔")
     parser.add_argument("--object-nbs", type=str, default="cone,2", help="目标名称和数量，多个用逗号分隔")
-    parser.add_argument("--check_indicator", type=bool, default=True, help="是否检查指标")
+    parser.add_argument("--check_indicator", type=int, default=1, help="是否检查指标")
     parser.add_argument("--interval_frames", type=int, default=4, help="每隔多少帧处理一次")
     
     args = parser.parse_args()
@@ -290,7 +305,7 @@ def main():
             print(f'路径 {clip} 不存在')
             continue
         if args.check_indicator and os.path.exists(f'{clip}/data_mined'):
-            print(f'路径 {clip} 已经处理过')
+            print(f'路径 {clip} 已经处理过, {args.check_indicator}')
             continue
         # /mnt/juicefs/obstacle_visual_auto_labeling/raw_data/pdb-l4e-c0002/xxxx
         vehicle_name = clip.split("/")[5]

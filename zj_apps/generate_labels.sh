@@ -11,6 +11,6 @@ python zj_apps/dino/generate_yolo_label_from_plusai_data.py \
     --video-path cone_detect_202503.mp4 \
     --cameras side_right_camera \
     --device cpu \
-    --check_indicator True \
+    --check_indicator 0 \
     --interval_frames 2 \
-    --object-nbs "cone,4"
+    --object-nbs "cone,4,person,1"
